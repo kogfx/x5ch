@@ -1,0 +1,15 @@
+# --- Security: Ignore Secrets ---
+config.rb
+.env
+
+# --- System & Logs ---
+.DS_Store
+Thumbs.db
+*.log
+cron.log
+
+# --- App Data (Local Only) ---
+.x5ch_history.json
+.x5ch_queue.json
+.x5ch.lock
+.x5ch.pid
