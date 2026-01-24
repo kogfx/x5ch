@@ -4,13 +4,26 @@ require 'json'
 require_relative '../config'
 
 class DiscordManager
+  attr_reader :token, :channel_id
+
   def initialize
     @token = Config::DISCORD_BOT_TOKEN
     @channel_id = Config::DISCORD_CHANNEL_ID
   end
 
+  # --- 設定が有効かチェックするメソッド ---
+  def enabled?
+    # トークンがない、空、または初期値のままなら無効とみなす
+    return false if @token.nil? || @token.empty? || @token.include?("YOUR_BOT_TOKEN")
+    # チャンネルIDがない場合も無効
+    return false if @channel_id.nil? || @channel_id.empty?
+    
+    true
+  end
+  # ----------------------------------------
+
   def create_thread(title)
-    return nil unless @token && @channel_id
+    return nil unless enabled?
 
     uri = URI.parse("https://discord.com/api/v10/channels/#{@channel_id}/threads")
     http = Net::HTTP.new(uri.host, uri.port)
@@ -35,7 +48,6 @@ class DiscordManager
         data = JSON.parse(response.body)
         return data["id"]
       else
-        # 既に同名のスレッドがある場合などのエラーハンドリングは簡易的に
         return nil
       end
     rescue
@@ -44,10 +56,12 @@ class DiscordManager
   end
 
   def send_message(thread_id, post)
-    return unless thread_id
+    return unless enabled? && thread_id
 
-    # 1. 本文の整形 (h抜きURL補完など)
-    body = post[:body].to_s.gsub(/h(ttps?:\/\/)/, '\1')
+    # 1. 本文の整形 (h抜きURL補完)
+    # (?<!h) は「直前にhがない場合」という否定後読みです。
+    # これにより、既に https:// になっているものは無視し、ttps:// だけを https:// に変換します。
+    body = post[:body].to_s.gsub(/(?<!h)(ttps?:\/\/)/, 'h\1')
 
     # 2. メッセージ全体の構築
     # ヘッダー: 番号 : 名前 : 日付 ID:xxx
@@ -101,11 +115,8 @@ class DiscordManager
         rescue
         end
         sleep retry_after
-        # 再帰呼び出しでリトライ
         post_content(thread_id, content)
       elsif response.code.to_i >= 400
-        # その他のエラー (ログには出すが、ここでは停止させない)
-        # 上位のWorkerで捕捉させるために例外を投げる
         raise "Discord API Error: #{response.code} #{response.body}"
       end
     rescue => e
