@@ -61,7 +61,7 @@ class DiscordManager
     # 1. 本文の整形 (h抜きURL補完)
     # (?<!h) は「直前にhがない場合」という否定後読みです。
     # これにより、既に https:// になっているものは無視し、ttps:// だけを https:// に変換します。
-    body = post[:body].to_s.gsub(/(?<!h)(ttps?:\/\/)/, 'h\1')
+    body = post[:message].to_s.gsub(/(?<!h)(ttps?:\/\/)/, 'h\1')
 
     # 2. メッセージ全体の構築
     # ヘッダー: 番号 : 名前 : 日付 ID:xxx
