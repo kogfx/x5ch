@@ -276,21 +276,57 @@ class FiveChBrowser
   end
 
   def show_thread(thread_info)
+    # 1. 最新の既読位置を再取得
+    saved_last_read = @history.get_last_read(thread_info[:board_url], thread_info[:dat_file])
+    thread_info[:last_read] = saved_last_read if saved_last_read > 0
+    last_read = thread_info[:last_read] || 0
+
     puts "スレッド取得中..."
     posts = get_thread_data(thread_info)
     
     if posts.nil? || posts.empty?
       puts "取得失敗またはdat落ち"; gets; return
     end
-
     thread_info[:count] = posts.size 
-    content = [ {type: :header, thread_info: thread_info}, {type: :unread_marker, thread_info: thread_info} ]
-    posts.each { |p| content << {type: :post, data: p, thread_info: thread_info} }
+
+    # --- 表示データの構築 (全件渡す方式に変更) ---
+    content = []
+    content << {type: :header, thread_info: thread_info}
+
+    marker_inserted = false
+
+    posts.each do |p|
+      # まだマーカーを入れておらず、かつ、このレス番号が既読を超えている場合
+      if !marker_inserted && p[:num] > last_read
+        # ここにマーカーを挿入
+        content << {type: :unread_marker, thread_info: thread_info}
+        marker_inserted = true
+      end
+      
+      # レス本体は常に全て追加する（ここが重要）
+      content << {type: :post, data: p, thread_info: thread_info}
+    end
+
+    # もし最後までマーカーが入らなかった（＝新着なし、または全部既読）場合
+    unless marker_inserted
+      # 末尾にマーカーを入れておくと、ViPagerが自動で一番下を表示してくれる
+      content << {type: :unread_marker, thread_info: thread_info}
+      content << {type: :system_msg, message: "(新着なし - 最終レスまで既読です)", thread_info: thread_info}
+    end
+    # -------------------------------------------
     
     pager = ViPager.new(content)
     result = pager.start
-    if result && result[:thread] && result[:res] > 0
-      @history.update_history(result[:thread], result[:res])
+    
+    if result && result[:res] > 0
+      @history.update_history(thread_info, result[:res])
+      
+      thread_info[:last_read] = result[:res]
+      if thread_info[:last_read] >= thread_info[:count]
+        thread_info[:has_new] = false
+        # スレッド一覧の表示更新のため、キューフラグなどは必要に応じて操作
+      end
+
       puts "\n履歴を更新しました: #{result[:res]}"
       sleep 0.5
     end

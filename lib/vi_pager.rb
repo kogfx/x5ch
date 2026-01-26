@@ -12,6 +12,7 @@ class ViPager
   end
 
   def prepare_content
+    @jump_index = 0  # 未読マーカーの行番号を記録する変数
     @content_list.each do |item|
       case item[:type]
       when :header
@@ -21,6 +22,7 @@ class ViPager
         add_line(" URL: #{th[:url]} (既読: #{th[:last_read]})", th, 0)
         add_line("=" * 60, th, 0)
       when :unread_marker
+        @jump_index = [@lines.size - 10, 0].max
         add_line("▼▼▼ ここから未読 ▼▼▼", item[:thread_info], 0, :red)
       when :system_msg
         add_line("  #{item[:message]}", item[:thread_info], 0, :dim)
@@ -52,8 +54,11 @@ class ViPager
   # 戻り値: 最後に見ていた位置情報 { thread: ..., res: ... } または nil
   def start
     rows, cols = IO.console.winsize
-    current_line = 0
+    current_line = @jump_index
     max_scroll = [@lines.size - rows, 0].max
+    # もしジャンプ先が深すぎる場合は補正
+    current_line = [current_line, max_scroll].min
+    last_valid_context = nil
 
     loop do
       max_scroll = [@lines.size - rows, 0].max 

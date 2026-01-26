@@ -5,6 +5,18 @@ require_relative '../config'
 class HistoryManager
   include MonitorMixin
 
+  private
+
+ def normalize_url(url)
+    url.to_s
+       .sub(/^https?:\/\//, '')      # http(s):// 削除
+       .sub(/^www\./, '')            # www. 削除
+       .sub(/\/$/, '')               # 末尾スラッシュ削除
+       .gsub('2ch.net', '5ch.net')   # ドメイン統一
+  end
+
+  public
+
   def initialize
     super()
     @data = {}
@@ -37,20 +49,14 @@ class HistoryManager
 
   # URLを正規化して一意なキーを作成する
   def generate_key(board_url, dat_file)
-    normalized_url = board_url.to_s
-                              .sub(/^https?:\/\//, '')  # プロトコル削除
-                              .sub(/^www\./, '')        # www削除
-                              .sub(/\/$/, '')           # 末尾スラッシュ削除
-                              .gsub('2ch.net', '5ch.net') # ドメイン統一
-    "#{normalized_url}::#{dat_file}"
+    "#{normalize_url(board_url)}::#{dat_file}"
   end
 
   def get_last_read(board_url, dat_file)
     synchronize do
       key = generate_key(board_url, dat_file)
       entry = @data[key]
-      if entry.is_a?(Integer); entry
-      elsif entry.is_a?(Hash); entry["res"] || 0
+      if entry.is_a?(Hash); entry["res"] || 0
       else; 0; end
     end
   end
@@ -73,14 +79,12 @@ class HistoryManager
 
   def has_history_in_board?(board_url)
     synchronize do
-      # 比較用のターゲットURLも正規化して合わせる
-      target = board_url.to_s.sub(/^https?:\/\//, '').sub(/^www\./, '').sub(/\/$/, '').gsub('2ch.net', '5ch.net')
+      target = normalize_url(board_url)
       
       @data.values.any? do |entry|
         next false unless entry.is_a?(Hash)
-        # 保存されているURLも念のため正規化して比較（移行済みなら不要だが安全策）
-        entry_url = entry["board_url"].to_s.sub(/^https?:\/\//, '').sub(/^www\./, '').sub(/\/$/, '').gsub('2ch.net', '5ch.net')
-        entry_url == target
+        # 保存データのURLも同じメソッドで正規化して比較
+        normalize_url(entry["board_url"]) == target
       end
     end
   end

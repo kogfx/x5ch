@@ -377,13 +377,36 @@ def main
       pid = File.read(Config::PID_FILE).to_i
       if pid > 0
         print "プロセス(PID: #{pid})を停止し、処理を引き継ぎます..."
+        
+        # 1. 優しく終了要請 (TERM)
         begin
           Process.kill(:TERM, pid)
+        rescue Errno::ESRCH
+          # プロセスが既にいない場合
+        end
+
+        # 2. 最大5秒待つ
+        5.times do
+          sleep 1.0
+          begin
+            Process.getpgid(pid) # プロセス生存確認
+            print "."
+          rescue Errno::ESRCH
+            break # いなくなった
+          end
+        end
+
+        # 3. まだ生きてたら強制終了 (KILL)
+        begin
+          Process.getpgid(pid)
+          print " 応答がないため強制終了します(KILL)..."
+          Process.kill(:KILL, pid)
         rescue Errno::ESRCH
         end
       end
     end
-    print " 終了待ち..."
+    
+    print " ロック取得..."
     lock_file.flock(File::LOCK_EX) 
     puts " 完了。\n\e[32m>> 処理を引き継いで起動します。\e[0m"
     sleep 1.0

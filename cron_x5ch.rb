@@ -83,7 +83,15 @@ def main
       # ★重要: ここで初めて転送を許可する
       browser.transfer_worker.resume
       
-      browser.transfer_worker.wait_until_done
+      # wait_until_done を使うとシグナルに反応できないため、
+      # 自前でループして $stop_requested を監視する
+      while browser.transfer_worker.busy?
+        if $stop_requested
+          puts "\nStopping transfer..."
+          break
+        end
+        sleep 1.0
+      end
     else
       puts "[#{Time.now.strftime('%H:%M:%S')}] No updates (Queue empty)."
     end
