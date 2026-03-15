@@ -11,8 +11,8 @@ require_relative 'transfer_worker'
 require_relative 'vi_pager'
 
 class FiveChBrowser
-  MENU_URL_JSON = "https://menu.5ch.net/bbsmenu.json"
-  MENU_URL_HTML = "https://menu.5ch.net/bbsmenu.html"
+  MENU_URL_JSON = "https://menu.5ch.io/bbsmenu.json"
+  MENU_URL_HTML = "https://menu.5ch.io/bbsmenu.html"
 
   attr_reader :history, :discord, :transfer_worker
 
@@ -69,13 +69,13 @@ class FiveChBrowser
       data = JSON.parse(body)
       if data["menu_list"].is_a?(Array)
         data["menu_list"].each do |cat|
-          next unless cat["bbs"].is_a?(Array)
+          next unless cat["category_content"].is_a?(Array)
           boards = []
-          cat["bbs"].each do |bbs|
+          cat["category_content"].each do |bbs|
             next unless bbs["url"]
             url = bbs["url"].gsub(/^http:/, "https:")
             url += "/" unless url.end_with?("/")
-            boards << { title: bbs["name"], url: url }
+            boards << { title: bbs["board_name"], url: url }
           end
           categories << { title: cat["category_name"], boards: boards } unless boards.empty?
         end
@@ -101,8 +101,8 @@ class FiveChBrowser
           current_boards = []
         elsif match[1]
           url = match[1]
-          next unless url.include?("5ch.net") || url.include?("2ch.net")
-          url = url.sub("2ch.net", "5ch.net").gsub(/^http:/, "https:")
+          next unless url.include?("5ch.io") || url.include?("5ch.net") || url.include?("2ch.net") || url.include?("bbspink.com")
+          url = url.gsub("2ch.net", "5ch.io").gsub("5ch.net", "5ch.io").gsub(/^http:/, "https:")
           url += "/" unless url.end_with?("/")
           current_boards << { title: match[2].strip, url: url } if current_category
         end
@@ -165,21 +165,22 @@ class FiveChBrowser
       body, _ = fetch_with_redirect(url)
       html = body.force_encoding('UTF-8').scrub
       results = []
-      html.scan(/<a\s+[^>]*href="(https?:\/\/[^\.]+\.5ch\.net\/test\/read\.cgi\/[^\/]+\/\d+\/?)"[^>]*>(.+?)<\/a>/i).each do |match|
+
+      html.scan(/<a\s+[^>]*href="(https?:\/\/[^\.]+\.5ch\.(?:net|io)\/test\/read\.cgi\/[^\/]+\/\d+\/?)"[^>]*>(.+?)<\/a>/i).each do |match|
         full_url = match[0]; raw_title = match[1]
-        if full_url =~ /https?:\/\/([^\.]+)\.5ch\.net\/test\/read\.cgi\/([^\/]+)\/(\d+)\/?/
+        if full_url =~ /https?:\/\/([^\.]+)\.5ch\.(?:net|io)\/test\/read\.cgi\/([^\/]+)\/(\d+)\/?/
           server = $1; board_name = $2; dat_file = $3
           title = raw_title.gsub(/<[^>]+>/, "").strip
           count = 0; count = $2.to_i if title =~ /^(.*)\((\d+)\)$/
           title = $1.strip if title =~ /^(.*)\((\d+)\)$/
-          board_url = "https://#{server}.5ch.net/#{board_name}/"
+          board_url = "https://#{server}.5ch.io/#{board_name}/"
           dat_filename = "#{dat_file}.dat"
           last_read = @history.get_last_read(board_url, dat_filename)
           has_new = count > last_read
           results << {
             title: title, count: count, ikioi: 0, 
             board_url: board_url, dat_file: dat_filename,
-            url: "https://#{server}.5ch.net/test/read.cgi/#{board_name}/#{dat_file}/",
+            url: "https://#{server}.5ch.io/test/read.cgi/#{board_name}/#{dat_file}/",
             last_read: last_read, has_new: has_new
           }
         end
@@ -250,7 +251,8 @@ class FiveChBrowser
       html = EncodingHelper.to_utf8(body)
       if html =~ /<title>(.*?)<\/title>/i
         full_title = $1.strip
-        return full_title.sub(/\s*[-|]\s*5ch\.net.*/i, "").strip
+
+        return full_title.sub(/\s*[-|]\s*5ch\.(net|io).*/i, "").strip
       end
     rescue
     end

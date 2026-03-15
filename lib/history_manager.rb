@@ -12,7 +12,8 @@ class HistoryManager
        .sub(/^https?:\/\//, '')      # http(s):// 削除
        .sub(/^www\./, '')            # www. 削除
        .sub(/\/$/, '')               # 末尾スラッシュ削除
-       .gsub('2ch.net', '5ch.net')   # ドメイン統一
+       .gsub('2ch.net', '5ch.io')   # ドメイン統一
+       .gsub('5ch.net', '5ch.io')   # ドメイン統一
   end
 
   public
